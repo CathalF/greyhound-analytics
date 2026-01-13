@@ -1,0 +1,52 @@
+{
+  "dog_name": "Proper Heiress",
+  "url": "https://greyhoundstats.co.uk/complete_runner_stats.php?dog=Proper%20Heiress",
+  "table_count": 3,
+  "tables": {
+    "table_1": {
+      "headers": [
+        "Home \n\n  Trainer Stats \n\nGraded Racing\nOpen Racing\n\n\n  Greyhound Stats \n\nGreyhound Search\nTop 50s\nTop Ratings\nGraded Greyhounds\nOpen Greyhounds\nGraded Sires\nOpen Sires\n\n\n  Track Stats \n\nStats by Trap\nCompare Times\nFastest Times\nWinning Graded Time Averages\n\n\n  Favourites Stats \n\n  Contact Us"
+      ],
+      "row_count": 0
+    },
+    "table_2": {
+      "headers": [
+        "Runs",
+        "Wins",
+        "Win %"
+      ],
+      "row_count": 1
+    },
+    "table_3": {
+      "headers": [
+        "Date",
+        "Track",
+        "Trap",
+        "Dog",
+        "Grade",
+        "Distance",
+        "SP",
+        "Finish",
+        "Sectional",
+        "Actual Time",
+        "Going",
+        "Calc. Time",
+        "Chester  \u00a0\u00a0 Rating",
+        "Trainer",
+        "Video"
+      ],
+      "row_count": 32
+    }
+  },
+  "keywords_found": [
+    "wins",
+    "runs",
+    "rating",
+    "grade",
+    "trap",
+    "distance",
+    "track",
+    "time",
+    "average"
+  ]
+}

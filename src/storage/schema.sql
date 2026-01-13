@@ -16,11 +16,13 @@ CREATE TABLE IF NOT EXISTS races (
 CREATE INDEX IF NOT EXISTS idx_races_race_time ON races(race_time);
 
 -- Dogs table: stores greyhound entries for races with statistics
+-- Note: race_id and trap_number can be NULL for stats-only dogs (Phase 2)
+-- These fields are populated when dogs are assigned to races (Phase 3)
 CREATE TABLE IF NOT EXISTS dogs (
     dog_id VARCHAR(100) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    race_id VARCHAR(100) NOT NULL REFERENCES races(race_id) ON DELETE CASCADE,
-    trap_number INTEGER CHECK (trap_number BETWEEN 1 AND 6),
+    race_id VARCHAR(100) REFERENCES races(race_id) ON DELETE CASCADE,
+    trap_number INTEGER CHECK (trap_number IS NULL OR (trap_number BETWEEN 1 AND 6)),
     stats JSONB,
     last_stats_update TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW()
