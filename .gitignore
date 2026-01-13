@@ -138,3 +138,7 @@ Thumbs.db
 
 # Temporary files
 tmpclaude-*-cwd
+
+# Batch scraper artifacts (Phase 02-03)
+logs/
+.scraper_progress.json
