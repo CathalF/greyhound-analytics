@@ -1,0 +1,16 @@
+# Web Scraping
+playwright==1.48.0
+playwright-stealth
+beautifulsoup4>=4.12.0
+
+# Database
+psycopg2-binary>=2.9.0
+
+# Environment Management
+python-dotenv>=1.0.0
+
+# HTTP & Async
+aiohttp>=3.9.0
+
+# Retry Logic
+tenacity>=8.0.0
