@@ -12,7 +12,7 @@ This helper configures:
 """
 
 from playwright.async_api import Page, Browser
-from playwright_stealth import stealth_async
+from playwright_stealth import Stealth
 
 
 async def setup_stealth_page(page: Page) -> Page:
@@ -45,7 +45,8 @@ async def setup_stealth_page(page: Page) -> Page:
         await page.goto(url)
     """
     # Apply playwright-stealth patches
-    await stealth_async(page)
+    stealth = Stealth()
+    await stealth.apply_stealth_async(page)
 
     # Set realistic viewport
     await page.set_viewport_size({"width": 1920, "height": 1080})
