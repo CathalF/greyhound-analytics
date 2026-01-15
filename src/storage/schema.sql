@@ -45,3 +45,36 @@ CREATE TABLE IF NOT EXISTS odds (
 
 -- Composite index for efficient odds history queries (by race, dog, and time)
 CREATE INDEX IF NOT EXISTS idx_odds_race_dog_timestamp ON odds(race_id, dog_id, timestamp);
+
+-- Race results table: stores finishing positions and times for completed races
+CREATE TABLE IF NOT EXISTS race_results (
+    result_id VARCHAR(100) PRIMARY KEY,
+    race_id VARCHAR(100) NOT NULL REFERENCES races(race_id) ON DELETE CASCADE,
+    dog_id VARCHAR(100) NOT NULL REFERENCES dogs(dog_id) ON DELETE CASCADE,
+    position INTEGER NOT NULL CHECK (position BETWEEN 1 AND 6),
+    finishing_time VARCHAR(20),
+    starting_price DECIMAL(10,2),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Index for efficient lookups by race
+CREATE INDEX IF NOT EXISTS idx_race_results_race_id ON race_results(race_id);
+
+-- Bet history table: tracks value bets that were suggested and their outcomes
+CREATE TABLE IF NOT EXISTS bet_history (
+    bet_id VARCHAR(100) PRIMARY KEY,
+    race_id VARCHAR(100) NOT NULL REFERENCES races(race_id),
+    dog_id VARCHAR(100) NOT NULL REFERENCES dogs(dog_id),
+    suggested_at TIMESTAMP NOT NULL,
+    value_score DECIMAL(5,2) NOT NULL,
+    best_odds DECIMAL(10,2) NOT NULL,
+    best_bookmaker VARCHAR(50) NOT NULL,
+    outcome VARCHAR(20) DEFAULT 'pending',
+    actual_position INTEGER,
+    profit_loss DECIMAL(10,2),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Index for efficient lookups by race and outcome
+CREATE INDEX IF NOT EXISTS idx_bet_history_race_id ON bet_history(race_id);
+CREATE INDEX IF NOT EXISTS idx_bet_history_outcome ON bet_history(outcome);
