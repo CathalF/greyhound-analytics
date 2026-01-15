@@ -102,11 +102,20 @@ Plans:
 **Goal**: Store race outcomes and track betting history to enable pattern analysis
 **Depends on**: v1.0 complete
 **Research**: Unlikely (internal patterns - extending existing database)
-**Status**: Planned
+**Status**: Complete
+
+**Implemented**:
+- race_results and bet_history database tables
+- Result and BetRecord models (`src/models/result.py`)
+- Storage layer (`src/storage/race_results.py`)
+- Results scraper from oddschecker (`src/scrapers/results_scraper.py`)
+- Value finder integration with automatic bet recording
+- Results collector script (`src/results_collector.py`)
+- Cleanup modified to preserve completed races
 
 Plans:
-- [ ] 05-01: Database schema and storage layer (race_results, bet_history tables)
-- [ ] 05-02: Results scraper and value finder integration
+- [x] 05-01: Database schema and storage layer (race_results, bet_history tables)
+- [x] 05-02: Results scraper and value finder integration
 
 #### Phase 6: Pattern Analysis
 **Goal**: Analyze historical race data to identify winning patterns and trends
@@ -137,7 +146,7 @@ Phases execute in numeric order: 5 → 6 → 7
 | 2. Stats Scraper | v1.0 | 3/3 | Complete | 2026-01-14 |
 | 3. Odds Scraper | v1.0 | 3/3 | Complete | 2026-01-14 |
 | 4. Dashboard & Analysis | v1.0 | 3/3 | Complete | 2026-01-15 |
-| 5. Race Results | v2.0 | 0/2 | Planned | - |
+| 5. Race Results | v2.0 | 2/2 | Complete | 2026-01-15 |
 | 6. Pattern Analysis | v2.0 | 0/? | Not started | - |
 | 7. Advanced Value | v2.0 | 0/? | Not started | - |
 

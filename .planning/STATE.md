@@ -10,18 +10,18 @@ See: .planning/PROJECT.md (updated 2026-01-15)
 ## Current Position
 
 Phase: 5 of 7 (Race Results)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-01-15 — Milestone v2.0 created
+Plan: 2 of 2 complete
+Status: Phase complete
+Last activity: 2026-01-15 — Completed 05-02-PLAN.md
 
-Progress: ░░░░░░░░░░ 0%
+Progress: ██░░░░░░░░ 20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
+- Total plans completed: 15
 - Average duration: ~2 hours per plan
-- Total execution time: ~26 hours
+- Total execution time: ~30 hours
 
 **By Phase:**
 
@@ -31,6 +31,7 @@ Progress: ░░░░░░░░░░ 0%
 | 2. Stats Scraper | 3 | ~6h | ~2h |
 | 3. Odds Scraper | 3 | ~6h | ~2h |
 | 4. Dashboard | 3 | ~6h | ~2h |
+| 5. Race Results | 2 | ~4h | ~2h |
 
 **Recent Trend:**
 - Last 5 plans: All successful
@@ -63,8 +64,10 @@ Key decisions made during development:
 
 - Irish tracks (Valley, Limerick) don't display trap numbers on oddschecker
 - Trap numbers extracted from `.trap-cell` HTML element
-- Auto-cleanup removes races 1 hour after race time
+- Auto-cleanup now preserves completed races (status='complete'), only removes scheduled
 - Dog name fuzzy matching handles variations between sources
+- Results scraper extracts from oddschecker results page with SP and finish times
+- Value bets automatically recorded to bet_history when identified
 
 ### Deferred Issues
 
@@ -87,5 +90,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-01-15
-Stopped at: Milestone v2.0 initialization
+Stopped at: Phase 5 complete
 Resume file: None
