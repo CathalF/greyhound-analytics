@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+
+{% block title %}{{ race.track_name }} {{ minutes_until }}min - Race Details{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Back Button -->
+        <a href="{{ url_for('dashboard.index') }}" class="btn btn-secondary mb-3">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </a>
+
+        <!-- Race Header -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h2 class="mb-0">
+                    <i class="bi bi-trophy"></i> {{ race.track_name }}
+                    {% if minutes_until < 30 %}
+                    <span class="badge bg-danger">Starts in {{ minutes_until }} minutes</span>
+                    {% else %}
+                    <span class="badge bg-info">{{ minutes_until }} minutes</span>
+                    {% endif %}
+                </h2>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <p><i class="bi bi-clock"></i> <strong>Time:</strong> {{ race.race_time.strftime('%H:%M') }}</p>
+                    </div>
+                    <div class="col-md-3">
+                        {% if race.distance %}
+                        <p><i class="bi bi-rulers"></i> <strong>Distance:</strong> {{ race.distance }}m</p>
+                        {% else %}
+                        <p><i class="bi bi-rulers"></i> <strong>Distance:</strong> N/A</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-3">
+                        {% if race.grade %}
+                        <p><i class="bi bi-award"></i> <strong>Grade:</strong> {{ race.grade }}</p>
+                        {% else %}
+                        <p><i class="bi bi-award"></i> <strong>Grade:</strong> N/A</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-3">
+                        <p><i class="bi bi-info-circle"></i> <strong>Status:</strong> {{ race.status|title }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dogs and Odds Table -->
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Dogs & Odds Comparison</h4>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Trap</th>
+                                <th>Dog</th>
+                                <th>Win Rate</th>
+                                {% for bk in bookmakers %}
+                                <th>{{ bookmaker_names[bk] }}</th>
+                                {% endfor %}
+                                <th>Best</th>
+                                <th>Worst</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for dog in dogs %}
+                            <tr class="dog-row {% if dog.value_class %}{{ dog.value_class }}{% endif %}">
+                                <!-- Trap Number with Color -->
+                                <td class="trap-cell trap-{{ dog.trap_number }}">
+                                    <strong>{{ dog.trap_number }}</strong>
+                                </td>
+
+                                <!-- Dog Name -->
+                                <td>
+                                    <strong>{{ dog.name }}</strong>
+                                    {% if dog.stats %}
+                                    <br><small class="text-muted">{{ dog.stats.runs }} runs</small>
+                                    {% endif %}
+                                </td>
+
+                                <!-- Win Rate -->
+                                <td class="text-center">
+                                    {% if dog.stats and dog.stats.win_rate %}
+                                    <strong>{{ "%.1f"|format(dog.stats.win_rate) }}%</strong>
+                                    {% else %}
+                                    <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- Bookmaker Odds -->
+                                {% for bk in bookmakers %}
+                                <td class="text-center odds-cell">
+                                    {% if dog.odds_by_bookmaker.get(bk) %}
+                                    <strong>{{ dog.odds_by_bookmaker[bk].decimal_odds }}</strong>
+                                    <br><small class="text-muted">{{ dog.odds_by_bookmaker[bk].fractional_odds }}</small>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+
+                                <!-- Best Odds -->
+                                <td class="text-center table-success">
+                                    {% if dog.best_odds %}
+                                    <strong>{{ dog.best_odds.decimal_odds }}</strong>
+                                    <br><small>{{ dog.best_odds.fractional_odds }}</small>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- Worst Odds -->
+                                <td class="text-center table-danger">
+                                    {% if dog.worst_odds %}
+                                    <strong>{{ dog.worst_odds.decimal_odds }}</strong>
+                                    <br><small>{{ dog.worst_odds.fractional_odds }}</small>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- Value Score -->
+                                <td class="text-center">
+                                    {% if dog.advanced_score > 0 %}
+                                    <div class="d-flex flex-column align-items-center">
+                                        <!-- Advanced Score -->
+                                        <strong class="{% if dog.advanced_score >= 1.5 %}text-success{% elif dog.advanced_score >= 1.25 %}text-warning{% else %}text-danger{% endif %}">
+                                            {{ "%.2f"|format(dog.advanced_score) }}x
+                                        </strong>
+
+                                        <!-- Confidence Badge -->
+                                        <span class="badge mb-1 {{ 'bg-success' if dog.confidence == 'high' else 'bg-warning text-dark' if dog.confidence == 'medium' else 'bg-secondary' }}"
+                                              data-bs-toggle="tooltip" title="{{ dog.value_explanation }}">
+                                            {{ dog.confidence }} confidence
+                                        </span>
+
+                                        <!-- Score Trend Indicator -->
+                                        {% if dog.advanced_score > dog.value_score + 0.1 %}
+                                        <small class="text-success"><i class="bi bi-arrow-up"></i> boosted</small>
+                                        {% elif dog.advanced_score < dog.value_score - 0.1 %}
+                                        <small class="text-danger"><i class="bi bi-arrow-down"></i> reduced</small>
+                                        {% endif %}
+
+                                        <!-- Factor Breakdown Toggle -->
+                                        {% if dog.factor_breakdown %}
+                                        <button class="btn btn-sm btn-outline-secondary mt-1"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#factors-{{ dog.dog_id|replace('-', '_') }}">
+                                            <i class="bi bi-bar-chart"></i> Factors
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                    {% else %}
+                                    <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <!-- Factor Breakdown Row (Collapsible) -->
+                            {% if dog.factor_breakdown %}
+                            <tr class="collapse" id="factors-{{ dog.dog_id|replace('-', '_') }}">
+                                <td colspan="{{ bookmakers|length + 6 }}" class="bg-light">
+                                    <div class="factor-breakdown p-3">
+                                        <h6 class="mb-2"><i class="bi bi-pie-chart"></i> Score Breakdown</h6>
+
+                                        <!-- Horizontal Progress Bar Visualization -->
+                                        <div class="progress mb-3" style="height: 25px;">
+                                            {% if dog.factor_breakdown.base_value %}
+                                            <div class="progress-bar bg-primary"
+                                                 style="width: {{ (dog.factor_breakdown.base_value.contribution / dog.total_contribution * 100)|round(1) }}%"
+                                                 data-bs-toggle="tooltip"
+                                                 title="Base: {{ dog.factor_breakdown.base_value.factor|round(2) }}">
+                                                Base
+                                            </div>
+                                            {% endif %}
+                                            {% if dog.factor_breakdown.track_factor %}
+                                            <div class="progress-bar bg-success"
+                                                 style="width: {{ (dog.factor_breakdown.track_factor.contribution / dog.total_contribution * 100)|round(1) }}%"
+                                                 data-bs-toggle="tooltip"
+                                                 title="Track: {{ dog.factor_breakdown.track_factor.factor|round(2) }}">
+                                                Track
+                                            </div>
+                                            {% endif %}
+                                            {% if dog.factor_breakdown.form_factor %}
+                                            <div class="progress-bar bg-info"
+                                                 style="width: {{ (dog.factor_breakdown.form_factor.contribution / dog.total_contribution * 100)|round(1) }}%"
+                                                 data-bs-toggle="tooltip"
+                                                 title="Form: {{ dog.factor_breakdown.form_factor.factor|round(2) }}">
+                                                Form
+                                            </div>
+                                            {% endif %}
+                                            {% if dog.factor_breakdown.trap_factor %}
+                                            <div class="progress-bar bg-warning"
+                                                 style="width: {{ (dog.factor_breakdown.trap_factor.contribution / dog.total_contribution * 100)|round(1) }}%"
+                                                 data-bs-toggle="tooltip"
+                                                 title="Trap: {{ dog.factor_breakdown.trap_factor.factor|round(2) }}">
+                                                Trap
+                                            </div>
+                                            {% endif %}
+                                            {% if dog.factor_breakdown.time_factor %}
+                                            <div class="progress-bar bg-secondary"
+                                                 style="width: {{ (dog.factor_breakdown.time_factor.contribution / dog.total_contribution * 100)|round(1) }}%"
+                                                 data-bs-toggle="tooltip"
+                                                 title="Time: {{ dog.factor_breakdown.time_factor.factor|round(2) }}">
+                                                Time
+                                            </div>
+                                            {% endif %}
+                                        </div>
+
+                                        <!-- Factor Details Table -->
+                                        <table class="table table-sm table-bordered mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Factor</th>
+                                                    <th>Weight</th>
+                                                    <th>Value</th>
+                                                    <th>Notes</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% if dog.factor_breakdown.base_value %}
+                                                <tr>
+                                                    <td><span class="badge bg-primary">Base Value</span></td>
+                                                    <td>{{ (dog.factor_breakdown.base_value.weight * 100)|round(0) }}%</td>
+                                                    <td>{{ dog.factor_breakdown.base_value.factor|round(2) }}</td>
+                                                    <td class="text-muted">{{ dog.factor_breakdown.base_value.description }}</td>
+                                                </tr>
+                                                {% endif %}
+                                                {% if dog.factor_breakdown.track_factor %}
+                                                <tr>
+                                                    <td><span class="badge bg-success">Track</span></td>
+                                                    <td>{{ (dog.factor_breakdown.track_factor.weight * 100)|round(0) }}%</td>
+                                                    <td class="{{ 'text-success' if dog.factor_breakdown.track_factor.factor > 1 else 'text-danger' if dog.factor_breakdown.track_factor.factor < 1 else '' }}">
+                                                        {{ dog.factor_breakdown.track_factor.factor|round(2) }}
+                                                    </td>
+                                                    <td class="text-muted">{{ dog.factor_breakdown.track_factor.description }}</td>
+                                                </tr>
+                                                {% endif %}
+                                                {% if dog.factor_breakdown.form_factor %}
+                                                <tr>
+                                                    <td><span class="badge bg-info">Form</span></td>
+                                                    <td>{{ (dog.factor_breakdown.form_factor.weight * 100)|round(0) }}%</td>
+                                                    <td class="{{ 'text-success' if dog.factor_breakdown.form_factor.factor > 1 else 'text-danger' if dog.factor_breakdown.form_factor.factor < 1 else '' }}">
+                                                        {{ dog.factor_breakdown.form_factor.factor|round(2) }}
+                                                    </td>
+                                                    <td class="text-muted">{{ dog.factor_breakdown.form_factor.description }}</td>
+                                                </tr>
+                                                {% endif %}
+                                                {% if dog.factor_breakdown.trap_factor %}
+                                                <tr>
+                                                    <td><span class="badge bg-warning text-dark">Trap</span></td>
+                                                    <td>{{ (dog.factor_breakdown.trap_factor.weight * 100)|round(0) }}%</td>
+                                                    <td class="{{ 'text-success' if dog.factor_breakdown.trap_factor.factor > 1 else 'text-danger' if dog.factor_breakdown.trap_factor.factor < 1 else '' }}">
+                                                        {{ dog.factor_breakdown.trap_factor.factor|round(2) }}
+                                                    </td>
+                                                    <td class="text-muted">{{ dog.factor_breakdown.trap_factor.description }}</td>
+                                                </tr>
+                                                {% endif %}
+                                                {% if dog.factor_breakdown.time_factor %}
+                                                <tr>
+                                                    <td><span class="badge bg-secondary">Time</span></td>
+                                                    <td>{{ (dog.factor_breakdown.time_factor.weight * 100)|round(0) }}%</td>
+                                                    <td class="{{ 'text-success' if dog.factor_breakdown.time_factor.factor > 1 else 'text-danger' if dog.factor_breakdown.time_factor.factor < 1 else '' }}">
+                                                        {{ dog.factor_breakdown.time_factor.factor|round(2) }}
+                                                    </td>
+                                                    <td class="text-muted">{{ dog.factor_breakdown.time_factor.description }}</td>
+                                                </tr>
+                                                {% endif %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Legend -->
+                <div class="mt-3">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Advanced Value Indicators:</h6>
+                            <ul class="list-unstyled">
+                                <li><span class="badge bg-success">Strong Value</span> - 1.5x+ (high confidence)</li>
+                                <li><span class="badge bg-warning text-dark">Value</span> - 1.25x+ (medium confidence)</li>
+                                <li><span class="badge bg-secondary">Fair</span> - Below 1.25x</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Factor Weights:</h6>
+                            <ul class="list-unstyled">
+                                <li><span class="badge bg-primary">Base</span> 40% - Win rate vs implied odds</li>
+                                <li><span class="badge bg-success">Track</span> 20% - Track-specific performance</li>
+                                <li><span class="badge bg-info">Form</span> 20% - Recent race form</li>
+                                <li><span class="badge bg-warning text-dark">Trap</span> 10% - Trap position bias</li>
+                                <li><span class="badge bg-secondary">Time</span> 10% - Time of day pattern</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Enable Bootstrap tooltips
+var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl)
+});
+
+// Auto-refresh every 60 seconds
+setTimeout(() => {
+    console.log('Auto-refreshing race details...');
+    location.reload();
+}, 60000);
+</script>
+{% endblock %}
