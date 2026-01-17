@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from src.storage.race_odds import get_race_with_dogs, get_race_odds, get_upcoming_races
 from src.storage.race_results import record_value_bet, update_bet_outcome, get_betting_history, get_race_results
 from src.storage.db import get_db
+from src.services.advanced_value import calculate_advanced_value_score
 from collections import defaultdict
 import logging
 
@@ -23,6 +24,10 @@ logger = logging.getLogger(__name__)
 # Configuration
 VALUE_THRESHOLD = 1.2  # 20% edge minimum
 STRONG_VALUE_THRESHOLD = 1.4  # 40% edge for strong highlights
+
+# Advanced scoring thresholds
+ADVANCED_VALUE_THRESHOLD = 1.25  # Slightly higher for advanced scoring
+ADVANCED_STRONG_VALUE_THRESHOLD = 1.5
 
 # Top 5 bookmakers to display
 TOP_BOOKMAKERS = ['B3', 'WH', 'PP', 'SK', 'BF']
@@ -95,7 +100,11 @@ def calculate_value_score(dog_stats: Dict[str, Any], best_decimal_odds: float) -
     return (score, explanation)
 
 
-def find_value_bets_for_race(race_id: str, record_bets: bool = False) -> List[Dict[str, Any]]:
+def find_value_bets_for_race(
+    race_id: str,
+    record_bets: bool = False,
+    use_advanced: bool = True
+) -> List[Dict[str, Any]]:
     """
     Identify value bets for a specific race.
 
@@ -106,6 +115,7 @@ def find_value_bets_for_race(race_id: str, record_bets: bool = False) -> List[Di
         race_id: Unique race identifier
         record_bets: If True, automatically records value bets to bet_history table
                     (only records if not already recorded for this race+dog)
+        use_advanced: If True, uses advanced multi-factor scoring alongside basic scoring
 
     Returns:
         List of value bet dictionaries containing:
@@ -114,11 +124,14 @@ def find_value_bets_for_race(race_id: str, record_bets: bool = False) -> List[Di
         - trap_number: Starting trap (1-6)
         - win_rate: Dog's historical win rate (%)
         - best_odds: Best decimal odds available
-        - value_score: Calculated value score
+        - value_score: Calculated basic value score
+        - advanced_score: Advanced multi-factor score (if use_advanced=True)
+        - factor_breakdown: Dict of factor contributions (if use_advanced=True)
+        - confidence: Confidence level of advanced score (if use_advanced=True)
         - explanation: Human-readable explanation
 
     Example:
-        value_bets = find_value_bets_for_race('harlow_1811_20260114')
+        value_bets = find_value_bets_for_race('harlow_1811_20260114', use_advanced=True)
         # [
         #   {
         #     'dog_id': 'proper-heiress',
@@ -127,6 +140,9 @@ def find_value_bets_for_race(race_id: str, record_bets: bool = False) -> List[Di
         #     'win_rate': 71.87,
         #     'best_odds': 2.5,
         #     'value_score': 1.44,
+        #     'advanced_score': 1.52,
+        #     'factor_breakdown': {...},
+        #     'confidence': 'high',
         #     'explanation': 'Strong value: 71.9% win rate vs 40.0% implied'
         #   }
         # ]
@@ -144,6 +160,10 @@ def find_value_bets_for_race(race_id: str, record_bets: bool = False) -> List[Di
     odds_by_dog = defaultdict(list)
     for odd in all_odds:
         odds_by_dog[odd['dog_id']].append(odd)
+
+    # Get race info for advanced scoring
+    track_name = race.get('track_name', '')
+    race_time = race.get('race_time')
 
     value_bets = []
 
@@ -166,24 +186,48 @@ def find_value_bets_for_race(race_id: str, record_bets: bool = False) -> List[Di
         best_odds = max(dog_odds, key=lambda x: x['decimal_odds'])
         best_decimal_odds = best_odds['decimal_odds']
 
-        # Calculate value score
+        # Calculate basic value score
         value_score, explanation = calculate_value_score(stats, best_decimal_odds)
 
+        # Calculate advanced score if requested
+        advanced_result = None
+        if use_advanced:
+            advanced_result = calculate_advanced_value_score(
+                dog_stats=stats,
+                best_decimal_odds=float(best_decimal_odds),
+                track_name=track_name,
+                trap_number=dog.get('trap_number', 1),
+                race_time=race_time
+            )
+
+        # Determine threshold based on scoring mode
+        threshold = ADVANCED_VALUE_THRESHOLD if use_advanced else VALUE_THRESHOLD
+        score_to_check = advanced_result['total_score'] if use_advanced and advanced_result else value_score
+
         # Only include if meets value threshold
-        if value_score >= VALUE_THRESHOLD:
-            value_bets.append({
+        if score_to_check >= threshold:
+            bet_data = {
                 'dog_id': dog_id,
                 'dog_name': dog['name'],
                 'trap_number': dog['trap_number'],
                 'win_rate': stats['win_rate'],
                 'best_odds': best_decimal_odds,
                 'best_bookmaker': BOOKMAKER_NAMES.get(best_odds['bookmaker'], best_odds['bookmaker']),
+                # Original score
                 'value_score': round(value_score, 2),
-                'explanation': explanation
-            })
+                # Advanced scoring
+                'advanced_score': round(advanced_result['total_score'], 2) if use_advanced and advanced_result else None,
+                'factor_breakdown': advanced_result.get('factor_breakdown') if use_advanced and advanced_result else None,
+                'confidence': advanced_result.get('confidence') if use_advanced and advanced_result else None,
+                'explanation': advanced_result.get('explanation', explanation) if use_advanced and advanced_result else explanation
+            }
+            value_bets.append(bet_data)
 
-    # Sort by value score (descending - best value first)
-    value_bets.sort(key=lambda x: x['value_score'], reverse=True)
+    # Sort by appropriate score (descending - best value first)
+    if use_advanced:
+        value_bets.sort(key=lambda x: x.get('advanced_score', 0) or 0, reverse=True)
+    else:
+        value_bets.sort(key=lambda x: x['value_score'], reverse=True)
 
     # Record bets to bet_history if requested
     if record_bets and value_bets:
@@ -242,7 +286,7 @@ def _record_value_bets(race_id: str, value_bets: List[Dict[str, Any]]) -> int:
     return recorded
 
 
-def get_all_value_bets(hours_ahead: int = 4) -> List[Dict[str, Any]]:
+def get_all_value_bets(hours_ahead: int = 4, use_advanced: bool = True) -> List[Dict[str, Any]]:
     """
     Scan all upcoming races and identify value bets.
 
@@ -250,6 +294,7 @@ def get_all_value_bets(hours_ahead: int = 4) -> List[Dict[str, Any]]:
 
     Args:
         hours_ahead: Number of hours to look ahead for races (default 4)
+        use_advanced: If True, uses advanced multi-factor scoring (default True)
 
     Returns:
         List of value bet dictionaries with race context added:
@@ -257,9 +302,9 @@ def get_all_value_bets(hours_ahead: int = 4) -> List[Dict[str, Any]]:
         - Plus: race_id, track_name, race_time
 
     Example:
-        all_value_bets = get_all_value_bets(hours_ahead=4)
+        all_value_bets = get_all_value_bets(hours_ahead=4, use_advanced=True)
         # Returns value bets from all races in next 4 hours,
-        # sorted by value score (best first)
+        # sorted by advanced_score (if use_advanced) or value_score (if not)
     """
     # Get upcoming races
     races = get_upcoming_races(hours_ahead)
@@ -270,7 +315,7 @@ def get_all_value_bets(hours_ahead: int = 4) -> List[Dict[str, Any]]:
         race_id = race['race_id']
 
         # Find value bets for this race
-        value_bets = find_value_bets_for_race(race_id)
+        value_bets = find_value_bets_for_race(race_id, use_advanced=use_advanced)
 
         # Add race context to each value bet
         for vb in value_bets:
@@ -281,8 +326,11 @@ def get_all_value_bets(hours_ahead: int = 4) -> List[Dict[str, Any]]:
                 'race_time': race['race_time']
             })
 
-    # Sort all value bets by score (descending)
-    all_value_bets.sort(key=lambda x: x['value_score'], reverse=True)
+    # Sort all value bets by appropriate score (descending)
+    if use_advanced:
+        all_value_bets.sort(key=lambda x: x.get('advanced_score', 0) or 0, reverse=True)
+    else:
+        all_value_bets.sort(key=lambda x: x['value_score'], reverse=True)
 
     return all_value_bets
 
