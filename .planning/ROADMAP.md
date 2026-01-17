@@ -139,10 +139,11 @@ Plans:
 **Goal**: Enhance value algorithm with track-specific performance, distance weighting, recent form trends, and trap bias
 **Depends on**: Phase 6
 **Research**: Unlikely (internal patterns - algorithm refinement)
-**Plans**: TBD
+**Status**: Planned
 
 Plans:
-- [ ] 07-01: TBD (run /gsd:plan-phase 7 to break down)
+- [ ] 07-01: Advanced value calculator with 5-factor weighting (track, form, trap, time)
+- [ ] 07-02: Dashboard integration with factor visualization
 
 ## Progress
 
@@ -157,7 +158,7 @@ Phases execute in numeric order: 5 → 6 → 7
 | 4. Dashboard & Analysis | v1.0 | 3/3 | Complete | 2026-01-15 |
 | 5. Race Results | v2.0 | 2/2 | Complete | 2026-01-15 |
 | 6. Pattern Analysis | v2.0 | 2/2 | Complete | 2026-01-17 |
-| 7. Advanced Value | v2.0 | 0/? | Not started | - |
+| 7. Advanced Value | v2.0 | 0/2 | Planned | - |
 
 ## Current Stats
 
