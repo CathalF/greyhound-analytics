@@ -4,18 +4,23 @@ Full Sequential Scraper
 Discovers upcoming races from oddschecker, scrapes odds, then fetches dog stats
 from greyhoundstats for each dog - all in sequence, race by race.
 
+By default, starts from the NEXT upcoming race (skips past races) and processes
+races in chronological order.
+
 Flow:
 1. Discover races from oddschecker listings
-2. For each race:
+2. Filter to races starting from now (unless --all)
+3. Sort by race time (earliest first)
+4. For each race:
    a. Scrape race card and odds from oddschecker
    b. For each dog in the race:
       - Check if dog exists in database with recent stats
       - If not, scrape stats from greyhoundstats.co.uk
    c. Store race, link dogs, store odds
-3. Move to next race
+5. Move to next race
 
 Usage:
-    # Scrape all races in next 4 hours
+    # Scrape races starting from next upcoming (default behavior)
     python -m src.full_scraper
 
     # Scrape races in next 6 hours
@@ -26,6 +31,9 @@ Usage:
 
     # Force refresh dog stats even if recent
     python -m src.full_scraper --refresh-stats
+
+    # Include all races (including past ones) for testing
+    python -m src.full_scraper --all
 """
 
 import asyncio
@@ -96,11 +104,37 @@ logger = setup_logging()
 STATS_REFRESH_THRESHOLD = 24
 
 
-async def discover_races(hours_ahead: int = 4) -> List[str]:
+def parse_race_time_from_url(url: str) -> Optional[datetime]:
+    """
+    Extract race time from oddschecker URL.
+
+    URL format: https://www.oddschecker.com/greyhounds/{track}/{time}/winner
+    Example: https://www.oddschecker.com/greyhounds/harlow/18:11/winner
+
+    Returns datetime for today with that time, or None if parsing fails.
+    """
+    import re
+    match = re.search(r'/greyhounds/[^/]+/(\d{2}):(\d{2})/winner', url)
+    if match:
+        try:
+            hour = int(match.group(1))
+            minute = int(match.group(2))
+            today = datetime.now().date()
+            return datetime.combine(today, datetime.min.time().replace(hour=hour, minute=minute))
+        except ValueError:
+            pass
+    return None
+
+
+async def discover_races(hours_ahead: int = 4, from_now: bool = True) -> List[str]:
     """
     Discover upcoming races from oddschecker listings page.
 
-    Returns list of race URLs for the next N hours.
+    Returns list of race URLs sorted by race time, starting from next available.
+
+    Args:
+        hours_ahead: Hours to look ahead for races
+        from_now: If True, only include races starting from current time onwards
     """
     logger.info(f"Discovering races for next {hours_ahead} hours...")
 
@@ -132,8 +166,38 @@ async def discover_races(hours_ahead: int = 4) -> List[str]:
                             seen.add(full_url)
                             race_links.append(full_url)
 
-            logger.info(f"Found {len(race_links)} upcoming races")
-            return race_links
+            # Parse times and filter/sort races
+            now = datetime.now()
+            cutoff = now + timedelta(hours=hours_ahead)
+
+            races_with_times = []
+            for url in race_links:
+                race_time = parse_race_time_from_url(url)
+                if race_time:
+                    # Filter: only include races from now onwards (with 2 min buffer)
+                    if from_now and race_time < (now - timedelta(minutes=2)):
+                        continue
+                    # Filter: only include races within hours_ahead window
+                    if race_time > cutoff:
+                        continue
+                    races_with_times.append((url, race_time))
+                else:
+                    # If we can't parse time, include it anyway
+                    races_with_times.append((url, now))
+
+            # Sort by race time (earliest first)
+            races_with_times.sort(key=lambda x: x[1])
+
+            sorted_urls = [url for url, _ in races_with_times]
+
+            if sorted_urls:
+                first_time = races_with_times[0][1].strftime('%H:%M') if races_with_times else 'unknown'
+                last_time = races_with_times[-1][1].strftime('%H:%M') if races_with_times else 'unknown'
+                logger.info(f"Found {len(sorted_urls)} upcoming races ({first_time} - {last_time})")
+            else:
+                logger.info(f"Found 0 upcoming races")
+
+            return sorted_urls
 
         except Exception as e:
             logger.error(f"Failed to discover races: {e}")
@@ -349,7 +413,8 @@ async def process_race(
 async def run_full_scrape(
     hours_ahead: int = 4,
     limit: Optional[int] = None,
-    force_refresh_stats: bool = False
+    force_refresh_stats: bool = False,
+    include_past: bool = False
 ):
     """
     Run full sequential scrape of races and dog stats.
@@ -358,6 +423,7 @@ async def run_full_scrape(
         hours_ahead: Hours to look ahead for races
         limit: Maximum number of races to process (None = all)
         force_refresh_stats: Force refresh dog stats even if recent
+        include_past: If True, include races that have already started
     """
     logger.info("=" * 80)
     logger.info("FULL SEQUENTIAL SCRAPER")
@@ -365,10 +431,11 @@ async def run_full_scrape(
     logger.info(f"Hours ahead: {hours_ahead}")
     logger.info(f"Race limit: {limit or 'No limit'}")
     logger.info(f"Force refresh stats: {force_refresh_stats}")
+    logger.info(f"Starting from: {'all races' if include_past else 'next upcoming race'}")
     logger.info("=" * 80)
 
-    # Discover races
-    race_urls = await discover_races(hours_ahead)
+    # Discover races (sorted by time, filtered to upcoming only by default)
+    race_urls = await discover_races(hours_ahead, from_now=not include_past)
 
     if not race_urls:
         logger.warning("No races found")
@@ -449,13 +516,20 @@ def main():
         action='store_true',
         help='Force refresh dog stats even if recently updated'
     )
+    parser.add_argument(
+        '--all',
+        action='store_true',
+        dest='include_past',
+        help='Include past races (default: start from next upcoming race)'
+    )
 
     args = parser.parse_args()
 
     asyncio.run(run_full_scrape(
         hours_ahead=args.hours,
         limit=args.limit,
-        force_refresh_stats=args.refresh_stats
+        force_refresh_stats=args.refresh_stats,
+        include_past=args.include_past
     ))
 
 
