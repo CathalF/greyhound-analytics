@@ -2,15 +2,18 @@
 Advanced Value Calculator Service
 
 Enhanced value scoring algorithm with multi-factor weighting.
-Incorporates track performance, form trends, trap bias, and time-of-day patterns
-beyond simple win_rate vs implied_probability calculation.
+Incorporates track performance, distance performance, grade performance,
+form trends, trap bias, and time-of-day patterns beyond simple
+win_rate vs implied_probability calculation.
 
 Weights:
-    - Base Value: 40% (win_rate / implied_probability)
-    - Track Factor: 20% (track-specific win rate ratio)
-    - Form Factor: 20% (recent form analysis)
-    - Trap Factor: 10% (from pattern_analyzer.get_trap_bias())
-    - Time Factor: 10% (from pattern_analyzer.get_time_of_day_analysis())
+    - Base Value: 30% (win_rate / implied_probability)
+    - Track Factor: 15% (track-specific win rate ratio)
+    - Distance Factor: 15% (distance-specific win rate ratio)
+    - Grade Factor: 10% (best grade performance indicator)
+    - Form Factor: 15% (recent form analysis)
+    - Trap Factor: 7.5% (from pattern_analyzer.get_trap_bias())
+    - Time Factor: 7.5% (from pattern_analyzer.get_time_of_day_analysis())
 """
 
 from typing import Dict, Any, Optional
@@ -25,11 +28,13 @@ logger = logging.getLogger(__name__)
 
 # Weighting factors
 DEFAULT_WEIGHTS = {
-    'base_value': 0.40,
-    'track_factor': 0.20,
-    'form_factor': 0.20,
-    'trap_factor': 0.10,
-    'time_factor': 0.10
+    'base_value': 0.30,
+    'track_factor': 0.15,
+    'distance_factor': 0.15,
+    'grade_factor': 0.10,
+    'form_factor': 0.15,
+    'trap_factor': 0.075,
+    'time_factor': 0.075
 }
 
 # Cache for pattern data (refreshed every 30 minutes)
@@ -143,6 +148,130 @@ def _calculate_track_factor(dog_stats: Dict[str, Any], track_name: str) -> tuple
     factor = max(0.5, min(2.0, factor))
 
     return factor, True
+
+
+def _calculate_distance_factor(dog_stats: Dict[str, Any], race_distance: Optional[int]) -> tuple[float, bool, str]:
+    """
+    Calculate distance-specific performance factor.
+
+    Compares dog's win rate at this distance vs overall win rate.
+
+    Args:
+        dog_stats: Dog statistics including distance_stats
+        race_distance: Current race distance in meters (e.g., 500)
+
+    Returns:
+        Tuple of (factor, has_data, distance_key):
+        - factor: Multiplier (e.g., 1.3 if 30% better at this distance)
+        - has_data: Whether distance-specific data was available
+        - distance_key: The matched distance key for description
+    """
+    if race_distance is None:
+        return 1.0, False, ''
+
+    distance_stats = dog_stats.get('distance_stats', {})
+    overall_win_rate = dog_stats.get('win_rate', 0)
+
+    if not distance_stats or not overall_win_rate or overall_win_rate <= 0:
+        return 1.0, False, ''
+
+    # Find matching distance in stats
+    # Distance keys might be "500m", "480", "500" etc.
+    distance_win_rate = None
+    matched_key = ''
+
+    for dist_key, stats in distance_stats.items():
+        # Normalize distance key - extract number
+        try:
+            dist_num = int(str(dist_key).replace('m', '').strip())
+        except ValueError:
+            continue
+
+        # Match if within 20m tolerance (e.g., 480 matches 500)
+        if abs(dist_num - race_distance) <= 20:
+            if isinstance(stats, dict):
+                distance_win_rate = stats.get('win_rate')
+                runs = stats.get('runs', 0)
+                # Require minimum 3 runs at this distance
+                if runs < 3:
+                    distance_win_rate = None
+                    continue
+            elif isinstance(stats, (int, float)):
+                distance_win_rate = stats
+            matched_key = dist_key
+            break
+
+    if distance_win_rate is None or distance_win_rate <= 0:
+        return 1.0, False, ''
+
+    # Calculate ratio: distance_win_rate / overall_win_rate
+    factor = distance_win_rate / overall_win_rate
+
+    # Cap factor to reasonable bounds (0.5 to 2.0)
+    factor = max(0.5, min(2.0, factor))
+
+    return factor, True, matched_key
+
+
+def _calculate_grade_factor(dog_stats: Dict[str, Any]) -> tuple[float, bool, str]:
+    """
+    Calculate grade performance factor.
+
+    Analyzes dog's performance across different grades to determine
+    if they're racing in their optimal grade range.
+
+    Args:
+        dog_stats: Dog statistics including grade_stats
+
+    Returns:
+        Tuple of (factor, has_data, best_grade):
+        - factor: Multiplier based on grade performance consistency
+        - has_data: Whether grade data was available
+        - best_grade: The dog's best performing grade
+    """
+    grade_stats = dog_stats.get('grade_stats', {})
+    overall_win_rate = dog_stats.get('win_rate', 0)
+
+    if not grade_stats or not overall_win_rate or overall_win_rate <= 0:
+        return 1.0, False, ''
+
+    # Find best performing grade and overall grade performance
+    best_grade = ''
+    best_win_rate = 0
+    total_grade_wins = 0
+    total_grade_runs = 0
+
+    for grade_key, stats in grade_stats.items():
+        if isinstance(stats, dict):
+            win_rate = stats.get('win_rate', 0)
+            runs = stats.get('runs', 0)
+            wins = stats.get('wins', 0)
+
+            # Require minimum 2 runs in grade
+            if runs >= 2:
+                total_grade_runs += runs
+                total_grade_wins += wins
+
+                if win_rate > best_win_rate:
+                    best_win_rate = win_rate
+                    best_grade = grade_key
+
+    if total_grade_runs < 5 or best_win_rate <= 0:
+        return 1.0, False, ''
+
+    # Calculate factor based on best grade performance vs overall
+    # If dog has a grade where they perform significantly better, boost them
+    factor = best_win_rate / overall_win_rate
+
+    # Additional boost if they're consistently good across grades
+    avg_grade_win_rate = (total_grade_wins / total_grade_runs * 100) if total_grade_runs > 0 else 0
+    if avg_grade_win_rate >= overall_win_rate:
+        factor *= 1.05  # 5% boost for consistency
+
+    # Cap factor to reasonable bounds (0.7 to 1.5)
+    factor = max(0.7, min(1.5, factor))
+
+    return factor, True, best_grade
 
 
 def _calculate_form_factor(dog_stats: Dict[str, Any]) -> tuple[float, bool]:
@@ -310,6 +439,8 @@ def _calculate_time_factor(race_time: Optional[datetime]) -> tuple[float, bool]:
 
 def _determine_confidence(
     track_has_data: bool,
+    distance_has_data: bool,
+    grade_has_data: bool,
     form_has_data: bool,
     trap_has_data: bool,
     time_has_data: bool,
@@ -320,6 +451,8 @@ def _determine_confidence(
 
     Args:
         track_has_data: Whether track-specific data was available
+        distance_has_data: Whether distance-specific data was available
+        grade_has_data: Whether grade-specific data was available
         form_has_data: Whether form data was available
         trap_has_data: Whether trap bias data was available
         time_has_data: Whether time analysis data was available
@@ -330,12 +463,14 @@ def _determine_confidence(
     """
     factors_with_data = sum([
         track_has_data,
+        distance_has_data,
+        grade_has_data,
         form_has_data,
         trap_has_data and trap_sample_size >= 50,
         time_has_data
     ])
 
-    if factors_with_data >= 3:
+    if factors_with_data >= 4:
         return 'high'
     elif factors_with_data >= 2:
         return 'medium'
@@ -348,24 +483,28 @@ def calculate_advanced_value_score(
     best_decimal_odds: float,
     track_name: str,
     trap_number: int,
-    race_time: Optional[datetime] = None
+    race_time: Optional[datetime] = None,
+    race_distance: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Calculate advanced value score with multi-factor weighting.
 
-    Combines 5 factors:
-    1. Base Value (40%): win_rate / implied_probability
-    2. Track Factor (20%): track-specific win rate ratio
-    3. Form Factor (20%): recent form analysis
-    4. Trap Factor (10%): historical trap win rates
-    5. Time Factor (10%): time-of-day ROI patterns
+    Combines 7 factors:
+    1. Base Value (30%): win_rate / implied_probability
+    2. Track Factor (15%): track-specific win rate ratio
+    3. Distance Factor (15%): distance-specific win rate ratio
+    4. Grade Factor (10%): best grade performance indicator
+    5. Form Factor (15%): recent form analysis
+    6. Trap Factor (7.5%): historical trap win rates
+    7. Time Factor (7.5%): time-of-day ROI patterns
 
     Args:
-        dog_stats: Dict from dogs table (includes track_stats, distance_stats, recent_form)
+        dog_stats: Dict from dogs table (includes track_stats, distance_stats, grade_stats, recent_form)
         best_decimal_odds: Best decimal odds available across bookmakers
         track_name: Current race track name
         trap_number: Current trap assignment (1-6)
         race_time: Race datetime (for time-of-day factor)
+        race_distance: Race distance in meters (e.g., 500)
 
     Returns:
         Dict containing:
@@ -377,11 +516,12 @@ def calculate_advanced_value_score(
 
     Example:
         result = calculate_advanced_value_score(
-            dog_stats={'win_rate': 30, 'track_stats': {}, 'recent_form': []},
+            dog_stats={'win_rate': 30, 'track_stats': {}, 'distance_stats': {}, 'recent_form': []},
             best_decimal_odds=4.0,
             track_name='Hove',
             trap_number=1,
-            race_time=datetime(2026, 1, 17, 19, 30)
+            race_time=datetime(2026, 1, 17, 19, 30),
+            race_distance=500
         )
         print(f"Score: {result['total_score']}, Confidence: {result['confidence']}")
     """
@@ -406,6 +546,8 @@ def calculate_advanced_value_score(
 
     # Calculate individual factors
     track_factor, track_has_data = _calculate_track_factor(dog_stats, track_name)
+    distance_factor, distance_has_data, distance_key = _calculate_distance_factor(dog_stats, race_distance)
+    grade_factor, grade_has_data, best_grade = _calculate_grade_factor(dog_stats)
     form_factor, form_has_data = _calculate_form_factor(dog_stats)
     trap_factor, trap_has_data, trap_sample_size = _calculate_trap_factor(trap_number)
     time_factor, time_has_data = _calculate_time_factor(race_time)
@@ -414,6 +556,8 @@ def calculate_advanced_value_score(
     total_score = (
         base_score * weights['base_value'] +
         base_score * track_factor * weights['track_factor'] +
+        base_score * distance_factor * weights['distance_factor'] +
+        base_score * grade_factor * weights['grade_factor'] +
         base_score * form_factor * weights['form_factor'] +
         base_score * trap_factor * weights['trap_factor'] +
         base_score * time_factor * weights['time_factor']
@@ -434,6 +578,20 @@ def calculate_advanced_value_score(
             'contribution': base_score * track_factor * weights['track_factor'],
             'has_data': track_has_data,
             'description': f'+{(track_factor-1)*100:.0f}% at {track_name}' if track_has_data else 'No track data'
+        },
+        'distance_factor': {
+            'factor': distance_factor,
+            'weight': weights['distance_factor'],
+            'contribution': base_score * distance_factor * weights['distance_factor'],
+            'has_data': distance_has_data,
+            'description': f'+{(distance_factor-1)*100:.0f}% at {distance_key}' if distance_has_data else 'No distance data'
+        },
+        'grade_factor': {
+            'factor': grade_factor,
+            'weight': weights['grade_factor'],
+            'contribution': base_score * grade_factor * weights['grade_factor'],
+            'has_data': grade_has_data,
+            'description': f'Best: {best_grade} (+{(grade_factor-1)*100:.0f}%)' if grade_has_data else 'No grade data'
         },
         'form_factor': {
             'factor': form_factor,
@@ -460,7 +618,8 @@ def calculate_advanced_value_score(
 
     # Determine confidence level
     confidence = _determine_confidence(
-        track_has_data, form_has_data, trap_has_data, time_has_data, trap_sample_size
+        track_has_data, distance_has_data, grade_has_data, form_has_data,
+        trap_has_data, time_has_data, trap_sample_size
     )
 
     # Generate explanation

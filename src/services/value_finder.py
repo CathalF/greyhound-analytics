@@ -164,6 +164,7 @@ def find_value_bets_for_race(
     # Get race info for advanced scoring
     track_name = race.get('track_name', '')
     race_time = race.get('race_time')
+    race_distance = race.get('distance')  # Integer in meters (e.g., 500)
 
     value_bets = []
 
@@ -197,7 +198,8 @@ def find_value_bets_for_race(
                 best_decimal_odds=float(best_decimal_odds),
                 track_name=track_name,
                 trap_number=dog.get('trap_number', 1),
-                race_time=race_time
+                race_time=race_time,
+                race_distance=race_distance
             )
 
         # Determine threshold based on scoring mode
