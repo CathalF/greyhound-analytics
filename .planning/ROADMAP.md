@@ -121,10 +121,11 @@ Plans:
 **Goal**: Analyze historical race data to identify winning patterns and trends
 **Depends on**: Phase 5
 **Research**: Unlikely (internal patterns - data analysis on existing schema)
-**Plans**: TBD
+**Status**: Planned
 
 Plans:
-- [ ] 06-01: TBD (run /gsd:plan-phase 6 to break down)
+- [ ] 06-01: Pattern analyzer service (track, value score, form, trap analysis)
+- [ ] 06-02: Dashboard integration (/patterns page)
 
 #### Phase 7: Advanced Value
 **Goal**: Enhance value algorithm with track-specific performance, distance weighting, recent form trends, and trap bias
@@ -147,7 +148,7 @@ Phases execute in numeric order: 5 → 6 → 7
 | 3. Odds Scraper | v1.0 | 3/3 | Complete | 2026-01-14 |
 | 4. Dashboard & Analysis | v1.0 | 3/3 | Complete | 2026-01-15 |
 | 5. Race Results | v2.0 | 2/2 | Complete | 2026-01-15 |
-| 6. Pattern Analysis | v2.0 | 0/? | Not started | - |
+| 6. Pattern Analysis | v2.0 | 0/2 | Planned | - |
 | 7. Advanced Value | v2.0 | 0/? | Not started | - |
 
 ## Current Stats
