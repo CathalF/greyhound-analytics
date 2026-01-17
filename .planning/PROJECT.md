@@ -12,18 +12,17 @@ Accurate and reliable data scraping from both sources without errors or missing 
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Daily scraping of greyhound statistics from greyhoundstats.co.uk
+- [x] Real-time odds scraping from oddschecker
+- [x] Comparison logic that identifies dogs with strong stats relative to their odds
+- [x] Web dashboard displaying current races with combined stats and odds
+- [x] Manual research interface to browse and analyze races
+- [x] Value bet identification highlighting potential opportunities
 
 ### Active
 
-- [ ] Daily scraping of greyhound statistics from greyhoundstats.co.uk
-- [ ] Real-time odds scraping from oddschecker
-- [ ] Comparison logic that identifies dogs with strong stats relative to their odds
-- [ ] Web dashboard displaying current races with combined stats and odds
-- [ ] Manual research interface to browse and analyze races
-- [ ] Value bet identification highlighting potential opportunities
 - [ ] Historical race tracking to identify patterns and trends
-- [ ] Betting recommendations based on stat/odds analysis
+- [ ] Betting recommendations based on stat/odds analysis (beyond basic value score)
 
 ### Out of Scope
 
@@ -53,9 +52,14 @@ Key implementation considerations:
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Web dashboard interface | Accessible from any device, easier to iterate | — Pending |
-| Separate refresh cycles (daily stats, real-time odds) | Optimizes scraping load and respects rate limits | — Pending |
-| Historical tracking included in v1 | Pattern analysis adds significant value to recommendations | — Pending |
+| Web dashboard interface | Accessible from any device, easier to iterate | Implemented with Flask |
+| Separate refresh cycles (daily stats, real-time odds) | Optimizes scraping load and respects rate limits | Working well |
+| Flask over FastAPI/Django | Simpler for MVP, less boilerplate | Good choice |
+| PostgreSQL for storage | Reliable, free tier available, JSONB for stats | Working well |
+| Playwright with stealth mode | Bypasses anti-bot detection | Effective |
+| Top 5 bookmakers only | Reduces noise, focuses on major UK bookies | Clean display |
+| Value threshold 1.2+ | 20% edge minimum balances opportunities vs noise | Good balance |
+| Auto-refresh 60 seconds | Keeps odds current without hammering server | Appropriate |
 
 ---
-*Last updated: 2026-01-13 after initialization*
+*Last updated: 2026-01-15 after MVP completion*
