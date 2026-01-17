@@ -1,0 +1,167 @@
+/* Greyhound Racing Value Finder - Custom Styles */
+
+/* ===== General Styles ===== */
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+/* ===== Trap Colors (Traditional Greyhound Racing) ===== */
+.trap-cell {
+    font-weight: bold;
+    text-align: center;
+    width: 60px;
+}
+
+.trap-1 {
+    background-color: #dc3545 !important;  /* Red */
+    color: white;
+}
+
+.trap-2 {
+    background-color: #0d6efd !important;  /* Blue */
+    color: white;
+}
+
+.trap-3 {
+    background-color: #f8f9fa !important;  /* White */
+    color: black;
+    border: 2px solid #dee2e6;
+}
+
+.trap-4 {
+    background-color: #212529 !important;  /* Black */
+    color: white;
+}
+
+.trap-5 {
+    background-color: #fd7e14 !important;  /* Orange */
+    color: white;
+}
+
+.trap-6 {
+    background: repeating-linear-gradient(
+        45deg,
+        #212529,
+        #212529 10px,
+        #f8f9fa 10px,
+        #f8f9fa 20px
+    ) !important;  /* Black & White stripes */
+    color: white;
+    font-weight: bold;
+}
+
+/* ===== Value Row Highlighting ===== */
+.dog-row.strong-value {
+    background-color: #d1f2eb !important;  /* Light green background */
+}
+
+.dog-row.decent-value {
+    background-color: #fff3cd !important;  /* Light yellow background */
+}
+
+.dog-row.no-value {
+    /* Default - no special background */
+}
+
+/* ===== Odds Table Styling ===== */
+.odds-cell {
+    min-width: 80px;
+    font-size: 0.95rem;
+}
+
+.odds-cell strong {
+    font-size: 1.1rem;
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+/* ===== Race Cards ===== */
+.card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.card.border-success {
+    box-shadow: 0 0 10px rgba(25, 135, 84, 0.3);
+}
+
+/* ===== Value Badges ===== */
+.badge {
+    font-size: 0.85rem;
+    padding: 0.35em 0.65em;
+}
+
+/* ===== Responsive Adjustments ===== */
+@media (max-width: 768px) {
+    .table {
+        font-size: 0.85rem;
+    }
+
+    .odds-cell {
+        min-width: 60px;
+    }
+
+    .trap-cell {
+        width: 40px;
+    }
+
+    h1 {
+        font-size: 1.75rem;
+    }
+
+    h2 {
+        font-size: 1.5rem;
+    }
+}
+
+/* ===== Loading Animation ===== */
+.loading {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #0d6efd;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ===== Footer ===== */
+footer {
+    margin-top: auto;
+}
+
+/* ===== Tooltip Customization ===== */
+.tooltip-inner {
+    max-width: 300px;
+    text-align: left;
+}
+
+/* ===== Alert Customization ===== */
+.alert {
+    border-radius: 0.375rem;
+}
+
+.alert-success {
+    border-left: 4px solid #198754;
+}
+
+.alert-info {
+    border-left: 4px solid #0dcaf0;
+}

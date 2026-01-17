@@ -97,8 +97,12 @@ class BaseScraper(ABC):
                 # CRITICAL: Rate limit BEFORE navigation (respects site rate limits)
                 await self.rate_limiter.acquire()
 
-                # Navigate and wait for network to be idle (JS finishes loading)
-                await page.goto(self.url, wait_until='networkidle', timeout=30000)
+                # Navigate and wait for page load
+                # Use 'domcontentloaded' instead of 'networkidle' for better reliability
+                await page.goto(self.url, wait_until='domcontentloaded', timeout=30000)
+
+                # Wait additional time for dynamic content to load
+                await page.wait_for_timeout(3000)
 
                 # Extract HTML content
                 html = await page.content()
