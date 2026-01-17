@@ -11,7 +11,7 @@ Greyhound racing scraping: Playwright with stealth mode for anti-bot bypass, tok
 ## Milestones
 
 - ✅ **v1.0 MVP** - Phases 1-4 (shipped 2026-01-15)
-- 🚧 **v2.0 Analytics** - Phases 5-7 (in progress)
+- ✅ **v2.0 Analytics** - Phases 5-7 (shipped 2026-01-17)
 
 ## Phases
 
@@ -94,7 +94,8 @@ Plans:
 
 </details>
 
-### 🚧 v2.0 Analytics (In Progress)
+<details>
+<summary>✅ v2.0 Analytics (Phases 5-7) - SHIPPED 2026-01-17</summary>
 
 **Milestone Goal:** Add historical tracking of race outcomes and enhance the value algorithm with track/distance/form weighting for better betting predictions.
 
@@ -139,11 +140,23 @@ Plans:
 **Goal**: Enhance value algorithm with track-specific performance, distance weighting, recent form trends, and trap bias
 **Depends on**: Phase 6
 **Research**: Unlikely (internal patterns - algorithm refinement)
-**Status**: Planned
+**Status**: Complete
+
+**Implemented**:
+- Advanced value calculator with 5-factor weighting (`src/services/advanced_value.py`)
+- Factors: base value (40%), track (20%), form (20%), trap bias (10%), time of day (10%)
+- Confidence levels (high/medium/low) based on data availability
+- 30-minute caching for pattern data
+- Value finder integration with advanced scoring mode
+- API endpoints for value analysis (`src/routes/api.py`)
+- Race detail page with factor breakdown visualization
+- Dashboard top value bets summary card with confidence indicators
 
 Plans:
-- [ ] 07-01: Advanced value calculator with 5-factor weighting (track, form, trap, time)
-- [ ] 07-02: Dashboard integration with factor visualization
+- [x] 07-01: Advanced value calculator with 5-factor weighting (track, form, trap, time)
+- [x] 07-02: Dashboard integration with factor visualization
+
+</details>
 
 ## Progress
 
@@ -158,7 +171,7 @@ Phases execute in numeric order: 5 → 6 → 7
 | 4. Dashboard & Analysis | v1.0 | 3/3 | Complete | 2026-01-15 |
 | 5. Race Results | v2.0 | 2/2 | Complete | 2026-01-15 |
 | 6. Pattern Analysis | v2.0 | 2/2 | Complete | 2026-01-17 |
-| 7. Advanced Value | v2.0 | 0/2 | Planned | - |
+| 7. Advanced Value | v2.0 | 2/2 | Complete | 2026-01-17 |
 
 ## Current Stats
 
