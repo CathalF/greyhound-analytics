@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Greyhound Racing Value Finder{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Confidence dot indicators */
+.confidence-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-left: 5px;
+}
+.confidence-dot.high { background-color: #28a745; }
+.confidence-dot.medium { background-color: #ffc107; }
+.confidence-dot.low { background-color: #6c757d; }
+
+/* Value bet card styling */
+.value-bet-card {
+    border-left: 3px solid #28a745;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    background: rgba(40, 167, 69, 0.05);
+    border-radius: 0 4px 4px 0;
+}
+.value-bet-card.high-confidence {
+    border-left-color: #28a745;
+}
+.value-bet-card.medium-confidence {
+    border-left-color: #ffc107;
+}
+.value-bet-card.low-confidence {
+    border-left-color: #6c757d;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Top Value Bets Summary (if available) -->
+    {% if top_value_bets %}
+    <div class="col-12 mb-4">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-star-fill"></i> Top Value Bets (Advanced Scoring)</h5>
+            </div>
+            <div class="card-body">
+                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-5 g-2">
+                    {% for bet in top_value_bets[:5] %}
+                    <div class="col">
+                        <div class="value-bet-card {{ bet.confidence }}-confidence">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>{{ bet.dog_name }}</strong>
+                                    <span class="confidence-dot {{ bet.confidence }}" title="{{ bet.confidence }} confidence"></span>
+                                    <br>
+                                    <small class="text-muted">{{ bet.track_name }} {{ bet.race_time.strftime('%H:%M') if bet.race_time else '' }}</small>
+                                </div>
+                                <div class="text-end">
+                                    <span class="h5 mb-0 text-success">{{ "%.2f"|format(bet.advanced_score or bet.value_score) }}x</span>
+                                    <br>
+                                    <small class="text-muted">{{ bet.primary_factor or '' }}</small>
+                                </div>
+                            </div>
+                            <div class="mt-1">
+                                <small>Trap {{ bet.trap_number }} | {{ "%.2f"|format(bet.best_odds) }} @ {{ bet.best_bookmaker }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="bi bi-speedometer2"></i> Upcoming Races
+            <span class="badge bg-secondary">{{ races|length }} races</span>
+        </h1>
+
+        {% if not races %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            <strong>No upcoming races found.</strong>
+            <p class="mb-0">Run the odds refresher to populate data: <code>py -m src.odds_refresher --once --hours 4</code></p>
+        </div>
+        {% else %}
+
+        <!-- Filter Controls -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Search by Track -->
+                    <div class="col-md-3">
+                        <label for="trackFilter" class="form-label">
+                            <i class="bi bi-geo-alt"></i> Track
+                        </label>
+                        <input type="text" class="form-control" id="trackFilter" placeholder="e.g. Harlow, Romford...">
+                    </div>
+
+                    <!-- Search by Dog Name -->
+                    <div class="col-md-3">
+                        <label for="dogFilter" class="form-label">
+                            <i class="bi bi-search"></i> Dog Name
+                        </label>
+                        <input type="text" class="form-control" id="dogFilter" placeholder="Search dog name...">
+                    </div>
+
+                    <!-- Time Range Filter -->
+                    <div class="col-md-2">
+                        <label for="timeFilter" class="form-label">
+                            <i class="bi bi-clock"></i> Time Range
+                        </label>
+                        <select class="form-select" id="timeFilter">
+                            <option value="all">All Times</option>
+                            <option value="30">Next 30 min</option>
+                            <option value="60">Next 1 hour</option>
+                            <option value="120">Next 2 hours</option>
+                        </select>
+                    </div>
+
+                    <!-- Value Bets Filter -->
+                    <div class="col-md-2">
+                        <label for="valueFilter" class="form-label">
+                            <i class="bi bi-graph-up"></i> Value
+                        </label>
+                        <select class="form-select" id="valueFilter">
+                            <option value="all">All Races</option>
+                            <option value="value">Value Bets Only</option>
+                        </select>
+                    </div>
+
+                    <!-- Reset Button -->
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button class="btn btn-outline-secondary w-100" id="resetFilters">
+                            <i class="bi bi-arrow-clockwise"></i> Reset
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Results Count -->
+                <div class="mt-3">
+                    <span class="badge bg-primary" id="resultsCount">{{ races|length }} races</span>
+                    <span class="text-muted ms-2" id="filterStatus"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Race Cards Grid -->
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4" id="raceCardsContainer">
+            {% for race in races %}
+            <div class="col race-card"
+                 data-track="{{ race.track_name|lower }}"
+                 data-minutes="{{ race.minutes_until }}"
+                 data-has-value="{{ 'true' if race.has_value_bets else 'false' }}"
+                 data-race-id="{{ race.race_id }}">
+                <div class="card h-100 {% if race.has_value_bets %}border-success border-2{% endif %}">
+                    <!-- Card Header with Status Badge -->
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">{{ race.track_name }}</h5>
+                        {% if race.minutes_until < 30 %}
+                        <span class="badge bg-danger">Imminent</span>
+                        {% elif race.minutes_until < 60 %}
+                        <span class="badge bg-warning text-dark">Soon</span>
+                        {% else %}
+                        <span class="badge bg-info">Upcoming</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="card-body">
+                        <!-- Race Time -->
+                        <p class="card-text">
+                            <i class="bi bi-clock"></i>
+                            <strong>{{ race.formatted_time }}</strong>
+                            <span class="text-muted">(in {{ race.minutes_until }} min)</span>
+                        </p>
+
+                        <!-- Distance -->
+                        {% if race.distance %}
+                        <p class="card-text">
+                            <i class="bi bi-rulers"></i> {{ race.distance }}m
+                        </p>
+                        {% endif %}
+
+                        <!-- Dogs Info -->
+                        <p class="card-text">
+                            <i class="bi bi-trophy"></i>
+                            {{ race.dogs_with_stats }}/{{ race.total_dogs }} dogs with stats
+                        </p>
+
+                        <!-- Value Bets with Advanced Scoring -->
+                        {% if race.has_value_bets %}
+                        <div class="alert alert-success mb-2 p-2">
+                            <i class="bi bi-graph-up-arrow"></i>
+                            <strong>{{ race.value_bet_count }} Value Bet{{ 's' if race.value_bet_count > 1 else '' }}</strong>
+                        </div>
+                        <!-- Show top value bets for this race -->
+                        {% for vb in race.value_bets[:2] %}
+                        <div class="value-bet-card {{ vb.confidence }}-confidence"
+                             data-dog-name="{{ vb.dog_name|lower }}">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <strong>{{ vb.dog_name }}</strong>
+                                    <span class="confidence-dot {{ vb.confidence }}" title="{{ vb.confidence }} confidence"></span>
+                                </div>
+                                <div class="text-end">
+                                    <span class="h6 mb-0 text-success">{{ "%.2f"|format(vb.advanced_score or vb.value_score) }}x</span>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <small>Trap {{ vb.trap_number }}</small>
+                                <small class="text-muted">{{ vb.primary_factor or '' }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% if race.value_bet_count > 2 %}
+                        <small class="text-muted">+{{ race.value_bet_count - 2 }} more</small>
+                        {% endif %}
+                        {% else %}
+                        <div class="alert alert-secondary mb-0">
+                            <i class="bi bi-dash-circle"></i> No value bets identified
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Card Footer with Action Button -->
+                    <div class="card-footer">
+                        <a href="{{ url_for('races.detail', race_id=race.race_id) }}"
+                           class="btn {% if race.has_value_bets %}btn-success{% else %}btn-primary{% endif %} w-100">
+                            <i class="bi bi-eye"></i> View Race Details
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Filter functionality
+const trackFilter = document.getElementById('trackFilter');
+const dogFilter = document.getElementById('dogFilter');
+const timeFilter = document.getElementById('timeFilter');
+const valueFilter = document.getElementById('valueFilter');
+const resetButton = document.getElementById('resetFilters');
+const resultsCount = document.getElementById('resultsCount');
+const filterStatus = document.getElementById('filterStatus');
+
+// Store race data for dog name filtering (loaded via AJAX)
+let raceDogsCache = {};
+
+// Apply filters
+function applyFilters() {
+    const trackValue = trackFilter.value.toLowerCase().trim();
+    const dogValue = dogFilter.value.toLowerCase().trim();
+    const timeValue = timeFilter.value;
+    const valueValue = valueFilter.value;
+
+    const raceCards = document.querySelectorAll('.race-card');
+    let visibleCount = 0;
+    let activeFilters = [];
+
+    raceCards.forEach(card => {
+        let visible = true;
+
+        // Track filter
+        if (trackValue) {
+            const trackName = card.dataset.track;
+            if (!trackName.includes(trackValue)) {
+                visible = false;
+            }
+        }
+
+        // Time range filter
+        if (timeValue !== 'all') {
+            const minutes = parseInt(card.dataset.minutes);
+            const maxMinutes = parseInt(timeValue);
+            if (minutes > maxMinutes) {
+                visible = false;
+            }
+        }
+
+        // Value bets filter
+        if (valueValue === 'value') {
+            const hasValue = card.dataset.hasValue === 'true';
+            if (!hasValue) {
+                visible = false;
+            }
+        }
+
+        // Dog name filter (requires AJAX lookup)
+        if (dogValue && visible) {
+            const raceId = card.dataset.raceId;
+            if (raceDogsCache[raceId]) {
+                const dogs = raceDogsCache[raceId];
+                const dogMatch = dogs.some(dog => dog.toLowerCase().includes(dogValue));
+                if (!dogMatch) {
+                    visible = false;
+                }
+            }
+        }
+
+        // Show/hide card
+        if (visible) {
+            card.style.display = '';
+            visibleCount++;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+
+    // Update results count
+    resultsCount.textContent = `${visibleCount} race${visibleCount !== 1 ? 's' : ''}`;
+
+    // Show active filters
+    if (trackValue) activeFilters.push(`Track: "${trackValue}"`);
+    if (dogValue) activeFilters.push(`Dog: "${dogValue}"`);
+    if (timeValue !== 'all') activeFilters.push(`Within ${timeValue} min`);
+    if (valueValue === 'value') activeFilters.push('Value bets only');
+
+    if (activeFilters.length > 0) {
+        filterStatus.textContent = `Filters: ${activeFilters.join(', ')}`;
+    } else {
+        filterStatus.textContent = '';
+    }
+}
+
+// Load dog names for a race (for dog name filtering)
+async function loadRaceDogs() {
+    if (dogFilter.value.trim() === '') return;
+
+    const raceCards = document.querySelectorAll('.race-card');
+    for (const card of raceCards) {
+        const raceId = card.dataset.raceId;
+        if (!raceDogsCache[raceId]) {
+            try {
+                const response = await fetch(`/api/race/${raceId}`);
+                const data = await response.json();
+                const dogs = data.race.dogs || [];
+                raceDogsCache[raceId] = dogs.map(d => d.name);
+            } catch (error) {
+                console.error(`Failed to load dogs for ${raceId}:`, error);
+                raceDogsCache[raceId] = [];
+            }
+        }
+    }
+    applyFilters();
+}
+
+// Event listeners
+trackFilter.addEventListener('input', applyFilters);
+timeFilter.addEventListener('change', applyFilters);
+valueFilter.addEventListener('change', applyFilters);
+
+// Dog filter needs to load race data first
+dogFilter.addEventListener('input', async () => {
+    if (dogFilter.value.trim().length >= 2) {
+        await loadRaceDogs();
+    } else {
+        applyFilters();
+    }
+});
+
+// Reset filters
+resetButton.addEventListener('click', () => {
+    trackFilter.value = '';
+    dogFilter.value = '';
+    timeFilter.value = 'all';
+    valueFilter.value = 'all';
+    applyFilters();
+});
+
+// Auto-refresh every 60 seconds
+setTimeout(() => {
+    console.log('Auto-refreshing dashboard...');
+    location.reload();
+}, 60000);
+</script>
+{% endblock %}
