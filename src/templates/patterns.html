@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+
+{% block title %}Pattern Analysis - Greyhound Racing Value Finder{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">
+            <i class="bi bi-graph-up"></i> Pattern Analysis
+        </h1>
+
+        <!-- Navigation Back to Dashboard -->
+        <a href="{{ url_for('dashboard.index') }}" class="btn btn-secondary mb-4">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </a>
+
+        {% if error_message %}
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle"></i> {{ error_message }}
+        </div>
+        {% endif %}
+
+        {% if not summary or summary.total_bets == 0 %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            <strong>No betting data yet.</strong>
+            <p class="mb-0">Start tracking value bets to see pattern analysis. Record bets through the race details page.</p>
+        </div>
+        {% else %}
+
+        <!-- Summary Card -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-clipboard-data"></i> Betting Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-2 col-6 mb-3">
+                        <h3>{{ summary.total_bets }}</h3>
+                        <p class="text-muted mb-0">Total Bets</p>
+                    </div>
+                    <div class="col-md-2 col-6 mb-3">
+                        <h3 class="text-success">{{ summary.wins }}</h3>
+                        <p class="text-muted mb-0">Wins</p>
+                    </div>
+                    <div class="col-md-2 col-6 mb-3">
+                        <h3 class="text-danger">{{ summary.losses }}</h3>
+                        <p class="text-muted mb-0">Losses</p>
+                    </div>
+                    <div class="col-md-2 col-6 mb-3">
+                        <h3>{{ summary.win_rate }}%</h3>
+                        <p class="text-muted mb-0">Win Rate</p>
+                    </div>
+                    <div class="col-md-2 col-6 mb-3">
+                        <h3 class="{{ 'text-success' if summary.total_profit > 0 else 'text-danger' if summary.total_profit < 0 else '' }}">
+                            {{ '+' if summary.total_profit > 0 else '' }}{{ summary.total_profit }}
+                        </h3>
+                        <p class="text-muted mb-0">Profit/Loss</p>
+                    </div>
+                    <div class="col-md-2 col-6 mb-3">
+                        <h3 class="{{ 'text-success' if summary.roi > 0 else 'text-danger' if summary.roi < 0 else '' }}">
+                            {{ '+' if summary.roi > 0 else '' }}{{ summary.roi }}%
+                        </h3>
+                        <p class="text-muted mb-0">ROI</p>
+                    </div>
+                </div>
+
+                <!-- Current Streak and Best Performers -->
+                <hr>
+                <div class="row">
+                    <div class="col-md-4">
+                        <strong>Current Streak:</strong>
+                        {% if summary.current_streak.type == 'won' %}
+                        <span class="badge bg-success">{{ summary.current_streak.count }} Win{{ 's' if summary.current_streak.count > 1 else '' }}</span>
+                        {% elif summary.current_streak.type == 'lost' %}
+                        <span class="badge bg-danger">{{ summary.current_streak.count }} Loss{{ 'es' if summary.current_streak.count > 1 else '' }}</span>
+                        {% else %}
+                        <span class="badge bg-secondary">None</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Best Track:</strong>
+                        <span class="text-success">{{ summary.best_track.name }} ({{ summary.best_track.roi }}% ROI)</span>
+                    </div>
+                    <div class="col-md-4">
+                        <strong>Best Value Range:</strong>
+                        <span class="text-success">{{ summary.best_value_bucket.range }} ({{ summary.best_value_bucket.roi }}% ROI)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Track Performance -->
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-geo-alt"></i> Track Performance</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if tracks %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Track</th>
+                                        <th class="text-center">Bets</th>
+                                        <th class="text-center">Wins</th>
+                                        <th class="text-center">Win Rate</th>
+                                        <th class="text-end">ROI</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for track_name, perf in tracks.items()|sort(attribute='1.roi', reverse=true) %}
+                                    <tr>
+                                        <td>{{ track_name }}</td>
+                                        <td class="text-center">{{ perf.sample_size }}</td>
+                                        <td class="text-center">{{ perf.win_count }}</td>
+                                        <td class="text-center">{{ perf.win_rate }}%</td>
+                                        <td class="text-end {{ 'text-success' if perf.roi > 0 else 'text-danger' if perf.roi < 0 else '' }}">
+                                            {{ '+' if perf.roi > 0 else '' }}{{ perf.roi }}%
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-muted mb-0">No track data available.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Value Score Analysis -->
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-bar-chart"></i> Value Score Analysis
+                            <span class="badge bg-info ms-2" data-bs-toggle="tooltip" title="Shows performance by value score range. Higher value scores indicate stronger betting opportunities.">?</span>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% if value_buckets %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Value Range</th>
+                                        <th class="text-center">Bets</th>
+                                        <th class="text-center">Win Rate</th>
+                                        <th class="text-center">Avg Odds</th>
+                                        <th class="text-end">ROI</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for bucket, perf in value_buckets.items()|sort(attribute='0') %}
+                                    <tr>
+                                        <td>{{ bucket }}</td>
+                                        <td class="text-center">{{ perf.sample_size }}</td>
+                                        <td class="text-center">{{ perf.win_rate }}%</td>
+                                        <td class="text-center">{{ perf.avg_odds }}</td>
+                                        <td class="text-end {{ 'text-success' if perf.roi > 0 else 'text-danger' if perf.roi < 0 else '' }}">
+                                            {{ '+' if perf.roi > 0 else '' }}{{ perf.roi }}%
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-muted mb-0">No value score data available.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Trap Bias -->
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-grid-3x2"></i> Trap Bias
+                            <span class="badge bg-info ms-2" data-bs-toggle="tooltip" title="Shows win rates for each trap position (1-6). Helps identify if certain traps have statistical advantages.">?</span>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% if trap_bias %}
+                        <div class="row text-center">
+                            {% for trap_num in range(1, 7) %}
+                            {% set trap = trap_bias.get(trap_num, {'wins': 0, 'total_races': 0, 'win_rate': 0.0}) %}
+                            <div class="col-4 col-md-2 mb-3">
+                                <div class="card {{ 'border-success' if trap.win_rate > 16.67 else 'border-danger' if trap.win_rate < 16.67 and trap.total_races > 0 else '' }}">
+                                    <div class="card-body p-2">
+                                        <h6 class="card-title mb-1">Trap {{ trap_num }}</h6>
+                                        <h4 class="mb-0 {{ 'text-success' if trap.win_rate > 16.67 else 'text-danger' if trap.win_rate < 16.67 and trap.total_races > 0 else '' }}">
+                                            {{ trap.win_rate }}%
+                                        </h4>
+                                        <small class="text-muted">{{ trap.wins }}/{{ trap.total_races }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <p class="text-muted small mt-2 mb-0">
+                            <i class="bi bi-info-circle"></i> Expected win rate per trap is 16.67% (1 in 6). Green indicates above average, red below average.
+                        </p>
+                        {% else %}
+                        <p class="text-muted mb-0">No trap data available.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Time of Day Analysis -->
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-clock"></i> Time of Day Performance
+                            <span class="badge bg-info ms-2" data-bs-toggle="tooltip" title="Compares betting performance across different times of day.">?</span>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% if time_analysis %}
+                        <div class="row">
+                            {% for time_slot, perf in [('morning', time_analysis.get('morning')), ('afternoon', time_analysis.get('afternoon')), ('evening', time_analysis.get('evening'))] %}
+                            {% if perf %}
+                            <div class="col-md-4 mb-3">
+                                <div class="card {{ 'border-success' if perf.roi > 0 else 'border-danger' if perf.roi < 0 else '' }}">
+                                    <div class="card-body text-center p-3">
+                                        <h6 class="text-capitalize mb-2">
+                                            {% if time_slot == 'morning' %}
+                                            <i class="bi bi-sunrise"></i> Morning
+                                            {% elif time_slot == 'afternoon' %}
+                                            <i class="bi bi-sun"></i> Afternoon
+                                            {% else %}
+                                            <i class="bi bi-moon-stars"></i> Evening
+                                            {% endif %}
+                                        </h6>
+                                        <p class="small text-muted mb-1">
+                                            {% if time_slot == 'morning' %}Before 14:00
+                                            {% elif time_slot == 'afternoon' %}14:00 - 18:00
+                                            {% else %}After 18:00
+                                            {% endif %}
+                                        </p>
+                                        <p class="mb-1">{{ perf.win_count }}/{{ perf.sample_size }} ({{ perf.win_rate }}%)</p>
+                                        <h5 class="{{ 'text-success' if perf.roi > 0 else 'text-danger' if perf.roi < 0 else '' }} mb-0">
+                                            {{ '+' if perf.roi > 0 else '' }}{{ perf.roi }}% ROI
+                                        </h5>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% if not time_analysis.get('morning') and not time_analysis.get('afternoon') and not time_analysis.get('evening') %}
+                        <p class="text-muted mb-0">No time-based data available.</p>
+                        {% endif %}
+                        {% else %}
+                        <p class="text-muted mb-0">No time-based data available.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Initialize Bootstrap tooltips
+var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+    return new bootstrap.Tooltip(tooltipTriggerEl)
+});
+</script>
+{% endblock %}
