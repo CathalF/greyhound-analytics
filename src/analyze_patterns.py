@@ -12,6 +12,7 @@ Usage:
     python src/analyze_patterns.py --value        # Value score buckets only
     python src/analyze_patterns.py --summary      # Summary stats only
     python src/analyze_patterns.py --json         # Output as JSON
+    python src/analyze_patterns.py --advanced     # Advanced value analysis for upcoming races
 """
 
 import argparse
@@ -27,6 +28,8 @@ from src.services.pattern_analyzer import (
     get_time_of_day_analysis,
     get_betting_summary
 )
+from src.services.value_finder import get_all_value_bets
+from src.services.advanced_value import get_weighting_factors
 
 # Set up logging
 logging.basicConfig(
@@ -191,6 +194,123 @@ def run_full_analysis() -> dict:
     }
 
 
+def format_advanced_analysis(value_bets: list, hours_ahead: int = 4) -> str:
+    """
+    Format advanced value analysis for upcoming races.
+
+    Displays factor breakdown for each value bet found.
+
+    Args:
+        value_bets: List of value bets with advanced scoring
+        hours_ahead: Hours ahead that were scanned
+
+    Returns:
+        Formatted string with advanced analysis
+    """
+    if not value_bets:
+        return f"=== Advanced Value Analysis ===\nNo value bets found in next {hours_ahead} hours.\n"
+
+    # Get weighting factors for display
+    weights = get_weighting_factors()
+
+    lines = ["=== Advanced Value Analysis ===", ""]
+
+    # Group by race
+    races = {}
+    for bet in value_bets:
+        race_key = f"{bet.get('track_name', 'Unknown')} {bet.get('race_time', '').strftime('%H:%M') if bet.get('race_time') else ''}"
+        if race_key not in races:
+            races[race_key] = []
+        races[race_key].append(bet)
+
+    for race_key, bets in races.items():
+        lines.append(f"Race: {race_key}")
+        lines.append("-" * 50)
+
+        for bet in bets:
+            dog_name = bet.get('dog_name', 'Unknown')
+            trap = bet.get('trap_number', '?')
+            base_score = bet.get('value_score', 0)
+            advanced_score = bet.get('advanced_score', base_score)
+            confidence = bet.get('confidence', 'low').upper()
+            win_rate = bet.get('win_rate', 0)
+            best_odds = bet.get('best_odds', 0)
+            best_bookmaker = bet.get('best_bookmaker', 'Unknown')
+
+            # Calculate implied probability
+            implied = (1.0 / float(best_odds) * 100) if best_odds > 0 else 0
+
+            lines.append(f"{dog_name} (Trap {trap})")
+            lines.append(f"  Base Score:     {base_score:.2f} (win_rate: {win_rate:.1f}% vs implied: {implied:.1f}%)")
+            lines.append(f"  Advanced Score: {advanced_score:.2f} [{confidence} confidence]")
+            lines.append("")
+            lines.append("  Factor Breakdown:")
+
+            factor_breakdown = bet.get('factor_breakdown', {})
+            if factor_breakdown:
+                for factor_name, factor_data in factor_breakdown.items():
+                    factor_val = factor_data.get('factor', 1.0)
+                    weight = factor_data.get('weight', 0)
+                    contribution = factor_data.get('contribution', 0)
+                    has_data = factor_data.get('has_data', False)
+                    description = factor_data.get('description', '')
+
+                    # Format factor name
+                    display_name = factor_name.replace('_', ' ').title()
+                    weight_pct = int(weight * 100)
+
+                    if factor_name == 'base_value':
+                        lines.append(f"    {display_name:18} ({weight_pct}%): {factor_val:.2f} x {weight:.2f} = {contribution:.3f}")
+                    else:
+                        data_marker = "" if has_data else " [N/A]"
+                        desc_str = f"  [{description}]" if description and has_data else ""
+                        lines.append(f"    {display_name:18} ({weight_pct}%): {factor_val:.2f} x {weight:.2f} = {contribution:.3f}{data_marker}{desc_str}")
+            else:
+                lines.append("    No factor breakdown available")
+
+            lines.append("")
+            lines.append(f"  Best Odds: {best_odds:.2f} @ {best_bookmaker}")
+            lines.append("-" * 50)
+            lines.append("")
+
+    return "\n".join(lines)
+
+
+def print_advanced_analysis(hours_ahead: int = 4, as_json: bool = False) -> None:
+    """
+    Print advanced value analysis for upcoming races.
+
+    Args:
+        hours_ahead: Hours ahead to scan for races
+        as_json: If True, output as JSON instead of formatted text
+    """
+    # Get value bets with advanced scoring
+    value_bets = get_all_value_bets(hours_ahead=hours_ahead, use_advanced=True)
+
+    if as_json:
+        # Convert for JSON serialization
+        json_bets = []
+        for bet in value_bets:
+            json_bet = bet.copy()
+            # Convert datetime to string
+            if 'race_time' in json_bet and json_bet['race_time']:
+                json_bet['race_time'] = json_bet['race_time'].isoformat()
+            # Convert Decimal to float
+            if 'best_odds' in json_bet:
+                json_bet['best_odds'] = float(json_bet['best_odds'])
+            json_bets.append(json_bet)
+
+        output = {
+            'advanced_value_bets': json_bets,
+            'hours_ahead': hours_ahead,
+            'total_bets': len(json_bets),
+            'weights': get_weighting_factors()
+        }
+        print(json.dumps(output, indent=2, default=str))
+    else:
+        print(format_advanced_analysis(value_bets, hours_ahead))
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Pattern Analysis CLI for Greyhound Racing Value Finder'
@@ -221,13 +341,26 @@ def main():
         help='Show time of day analysis only'
     )
     parser.add_argument(
+        '--advanced', action='store_true',
+        help='Show advanced value analysis for upcoming races with factor breakdowns'
+    )
+    parser.add_argument(
+        '--hours', type=int, default=4,
+        help='Hours ahead to scan for races (used with --advanced, default: 4)'
+    )
+    parser.add_argument(
         '--json', action='store_true',
         help='Output as JSON (for programmatic use)'
     )
 
     args = parser.parse_args()
 
-    # Determine what to show
+    # Handle advanced analysis separately
+    if args.advanced:
+        print_advanced_analysis(hours_ahead=args.hours, as_json=args.json)
+        return
+
+    # Determine what to show for pattern analysis
     show_all = not any([args.tracks, args.traps, args.value, args.summary, args.form, args.time])
 
     # Collect data based on what's needed
