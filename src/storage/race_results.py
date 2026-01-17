@@ -369,3 +369,199 @@ def get_betting_stats() -> Dict[str, Any]:
             'total_profit': 0.0,
             'roi': 0.0
         }
+
+
+# =============================================================================
+# Historical Query Functions for Pattern Analysis
+# =============================================================================
+
+def get_completed_races(limit: int = 100) -> List[Dict[str, Any]]:
+    """
+    Return races with status='complete' that have results.
+
+    Useful for pattern analysis to get historical race data.
+
+    Args:
+        limit: Maximum number of races to return (default 100)
+
+    Returns:
+        List of completed race dictionaries ordered by race_time DESC:
+        [
+            {
+                'race_id': 'hove_1530_20260115',
+                'track_name': 'Hove',
+                'race_time': datetime,
+                'distance': 480
+            },
+            ...
+        ]
+
+    Example:
+        completed = get_completed_races(limit=50)
+        print(f"Found {len(completed)} completed races")
+    """
+    db = get_db()
+
+    try:
+        query = """
+            SELECT DISTINCT r.race_id, r.track_name, r.race_time, r.distance
+            FROM races r
+            JOIN race_results rr ON r.race_id = rr.race_id
+            WHERE r.status = 'complete'
+            ORDER BY r.race_time DESC
+            LIMIT %s
+        """
+
+        results = db.execute_query(query, (limit,), fetch=True)
+
+        return [dict(row) for row in results] if results else []
+
+    except psycopg2.Error as e:
+        print(f"Error retrieving completed races: {e}")
+        return []
+
+
+def get_dog_race_history(dog_id: str) -> List[Dict[str, Any]]:
+    """
+    Get all race results for a specific dog.
+
+    Useful for analyzing individual dog performance over time.
+
+    Args:
+        dog_id: Dog's unique identifier
+
+    Returns:
+        List of race result dictionaries ordered by race_time DESC:
+        [
+            {
+                'race_id': 'hove_1530_20260115',
+                'track_name': 'Hove',
+                'race_time': datetime,
+                'position': 2,
+                'starting_price': 3.5
+            },
+            ...
+        ]
+
+    Example:
+        history = get_dog_race_history('rathbally-bolger')
+        for race in history:
+            print(f"{race['track_name']}: Position {race['position']}")
+    """
+    db = get_db()
+
+    try:
+        query = """
+            SELECT rr.race_id, r.track_name, r.race_time, rr.position, rr.starting_price
+            FROM race_results rr
+            JOIN races r ON rr.race_id = r.race_id
+            WHERE rr.dog_id = %s
+            ORDER BY r.race_time DESC
+        """
+
+        results = db.execute_query(query, (dog_id,), fetch=True)
+
+        return [dict(row) for row in results] if results else []
+
+    except psycopg2.Error as e:
+        print(f"Error retrieving race history for dog '{dog_id}': {e}")
+        return []
+
+
+def get_results_with_bet_outcomes() -> List[Dict[str, Any]]:
+    """
+    JOIN race_results with bet_history to get full picture of bets with results.
+
+    Only returns rows where both result and bet exist for complete analysis.
+
+    Returns:
+        List of combined result/bet dictionaries:
+        [
+            {
+                'race_id': 'hove_1530_20260115',
+                'track_name': 'Hove',
+                'dog_id': 'rathbally-bolger',
+                'position': 1,
+                'value_score': 1.45,
+                'best_odds': 5.5,
+                'outcome': 'won',
+                'profit_loss': 4.5
+            },
+            ...
+        ]
+
+    Example:
+        results_with_bets = get_results_with_bet_outcomes()
+        for r in results_with_bets:
+            print(f"{r['dog_id']}: {r['outcome']} (position {r['position']})")
+    """
+    db = get_db()
+
+    try:
+        query = """
+            SELECT
+                rr.race_id,
+                r.track_name,
+                rr.dog_id,
+                rr.position,
+                bh.value_score,
+                bh.best_odds,
+                bh.outcome,
+                bh.profit_loss
+            FROM race_results rr
+            JOIN races r ON rr.race_id = r.race_id
+            JOIN bet_history bh ON rr.race_id = bh.race_id AND rr.dog_id = bh.dog_id
+            WHERE bh.outcome IN ('won', 'lost')
+            ORDER BY r.race_time DESC
+        """
+
+        results = db.execute_query(query, fetch=True)
+
+        return [dict(row) for row in results] if results else []
+
+    except psycopg2.Error as e:
+        print(f"Error retrieving results with bet outcomes: {e}")
+        return []
+
+
+def count_results_by_track() -> Dict[str, int]:
+    """
+    Simple aggregation of race result count by track.
+
+    Useful for understanding sample sizes in pattern analysis.
+
+    Returns:
+        Dict mapping track name to count of race results:
+        {
+            'Hove': 125,
+            'Harlow': 98,
+            'Towcester': 76,
+            ...
+        }
+
+    Example:
+        track_counts = count_results_by_track()
+        for track, count in sorted(track_counts.items(), key=lambda x: -x[1]):
+            print(f"{track}: {count} results")
+    """
+    db = get_db()
+
+    try:
+        query = """
+            SELECT r.track_name, COUNT(*) as result_count
+            FROM race_results rr
+            JOIN races r ON rr.race_id = r.race_id
+            GROUP BY r.track_name
+            ORDER BY result_count DESC
+        """
+
+        results = db.execute_query(query, fetch=True)
+
+        if not results:
+            return {}
+
+        return {row['track_name']: row['result_count'] for row in results}
+
+    except psycopg2.Error as e:
+        print(f"Error counting results by track: {e}")
+        return {}
