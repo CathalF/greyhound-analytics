@@ -221,6 +221,7 @@ async def process_race(
         'race_id': None,
         'track': None,
         'time': None,
+        'distance': None,
         'dogs_found': 0,
         'dogs_matched': 0,
         'dogs_stats_scraped': 0,
@@ -244,9 +245,11 @@ async def process_race(
     stats['race_id'] = race_data['race_id']
     stats['track'] = race_data['track']
     stats['time'] = race_data['time']
+    stats['distance'] = race_data.get('distance')
     stats['dogs_found'] = len(race_data.get('dogs', []))
 
-    logger.info(f"  Found {stats['dogs_found']} dogs at {stats['track']} {stats['time']}")
+    distance_str = f" ({stats['distance']})" if stats['distance'] else ""
+    logger.info(f"  Found {stats['dogs_found']} dogs at {stats['track']} {stats['time']}{distance_str}")
 
     # Step 2: Store race
     race_to_store = {
