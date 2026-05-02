@@ -142,3 +142,13 @@ tmpclaude-*-cwd
 # Batch scraper artifacts (Phase 02-03)
 logs/
 .scraper_progress.json
+
+# Database
+*.db
+*.sqlite3
+
+# Debug HTML dumps
+debug_*.html
+
+# Malformed pyenv version files
+=*
